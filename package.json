@@ -1,12 +1,5 @@
 {
-  "name": "lead-finder-proxy",
-  "version": "1.0.0",
-  "description": "Simple website status proxy for Lead Finder CRM",
-  "main": "api/check.js",
-  "dependencies": {
-    "node-fetch": "^2.7.0"
-  },
-  "engines": {
-    "node": ">=14"
-  }
+  "routes": [
+    { "src": "/check", "dest": "/api/check.js" }
+  ]
 }
