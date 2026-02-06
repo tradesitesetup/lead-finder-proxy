@@ -1,26 +1,62 @@
 const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
-  // ---- REQUIRED HEADERS ----
+  // ---- HEADERS ----
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('Content-Type', 'application/json');
 
-  // Preflight check
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  // Preflight
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // Landing page message for browser GET requests
+  // ----- GET: check a single URL via query -----
   if (req.method === 'GET') {
-    return res.status(200).json({
-      message: 'Lead Finder Proxy API is running. Send a POST request to /check with { websites: [] }'
-    });
+    const queryUrl = req.query.url;
+
+    if (!queryUrl) {
+      return res.status(400).json({
+        error: 'Please provide a URL to check as ?url=example.com'
+      });
+    }
+
+    // Ensure URL starts with http/https
+    const url = queryUrl.startsWith('http') ? queryUrl : `https://${queryUrl}`;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const response = await fetch(url, {
+        method: 'HEAD',
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: { 'User-Agent': 'LeadFinderProxy/1.0' }
+      });
+
+      clearTimeout(timeoutId);
+
+      return res.status(200).json({
+        url,
+        status: response.ok ? 'working' : 'down',
+        details: response.ok
+          ? 'Website responded successfully'
+          : `HTTP ${response.status}`
+      });
+    } catch (error) {
+      return res.status(200).json({
+        url,
+        status: 'down',
+        details:
+          error.name === 'AbortError'
+            ? 'Timeout after 10 seconds'
+            : 'Connection failed'
+      });
+    }
   }
 
-  // Enforce POST for API calls
+  // ----- POST: existing multiple website check -----
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST required' });
   }
@@ -35,18 +71,17 @@ module.exports = async (req, res) => {
 
   const results = [];
 
-  for (const url of websites) {
+  for (const site of websites) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
+      const url = site.startsWith('http') ? site : `https://${site}`;
       const response = await fetch(url, {
         method: 'HEAD',
         redirect: 'follow',
         signal: controller.signal,
-        headers: {
-          'User-Agent': 'LeadFinderProxy/1.0'
-        }
+        headers: { 'User-Agent': 'LeadFinderProxy/1.0' }
       });
 
       clearTimeout(timeoutId);
@@ -58,10 +93,9 @@ module.exports = async (req, res) => {
           ? 'Website responded successfully'
           : `HTTP ${response.status}`
       });
-
     } catch (error) {
       results.push({
-        url,
+        url: site,
         status: 'down',
         details:
           error.name === 'AbortError'
