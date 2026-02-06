@@ -1,5 +1,17 @@
 {
-  "routes": [
-    { "src": "/check", "dest": "/api/check.js" }
-  ]
+  "name": "lead-finder-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Website status checking API for Lead Finder CRM",
+  "main": "api/check.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
 }
