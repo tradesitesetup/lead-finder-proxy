@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
-  // ----- REQUIRED HEADERS -----
+  // ---- REQUIRED HEADERS ----
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -35,7 +35,9 @@ module.exports = async (req, res) => {
         method: 'HEAD',
         redirect: 'follow',
         signal: controller.signal,
-        headers: { 'User-Agent': 'LeadFinderProxy/1.0' }
+        headers: {
+          'User-Agent': 'LeadFinderProxy/1.0'
+        }
       });
 
       clearTimeout(timeoutId);
@@ -45,7 +47,7 @@ module.exports = async (req, res) => {
         status: response.ok ? 'working' : 'down',
         details: response.ok
           ? 'Website responded successfully'
-          : `HTTP error: ${response.status} ${response.statusText}`
+          : `HTTP ${response.status}`
       });
 
     } catch (error) {
@@ -55,7 +57,7 @@ module.exports = async (req, res) => {
         details:
           error.name === 'AbortError'
             ? 'Timeout after 10 seconds'
-            : error.message || 'Connection failed'
+            : 'Connection failed'
       });
     }
   }
