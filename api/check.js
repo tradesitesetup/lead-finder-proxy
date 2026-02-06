@@ -3,15 +3,24 @@ const fetch = require('node-fetch');
 module.exports = async (req, res) => {
   // ---- REQUIRED HEADERS ----
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('Content-Type', 'application/json');
 
+  // Preflight check
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
+  // Landing page message for browser GET requests
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      message: 'Lead Finder Proxy API is running. Send a POST request to /check with { websites: [] }'
+    });
+  }
+
+  // Enforce POST for API calls
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST required' });
   }
