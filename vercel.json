@@ -2,6 +2,10 @@
   "version": 2,
   "routes": [
     {
+      "src": "/",
+      "dest": "/api/check.js"
+    },
+    {
       "src": "/check",
       "dest": "/api/check.js"
     }
