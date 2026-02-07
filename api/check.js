@@ -1,18 +1,25 @@
 const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
-  // ---- HEADERS ----
+  // ──────────────────────────────────────────────
+  // CORS headers — applied to ALL responses
+  // ──────────────────────────────────────────────
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+  // Handle preflight OPTIONS request (critical for CORS)
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   res.setHeader('Content-Type', 'application/json');
 
-  // Preflight
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  // Helper: check a single site
+  // ──────────────────────────────────────────────
+  // Your original helper function (checkSingle)
+  // ──────────────────────────────────────────────
   async function checkSingle(site) {
     const url = site.startsWith('http') ? site : `https://${site}`;
     const result = { url };
@@ -21,7 +28,6 @@ module.exports = async (req, res) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      // Original HEAD check
       const headRes = await fetch(url, {
         method: 'HEAD',
         redirect: 'follow',
@@ -37,7 +43,7 @@ module.exports = async (req, res) => {
         return result;
       }
 
-      // HEAD OK → fetch full body for quality inspection
+      // Fetch full body for quality checks
       const getRes = await fetch(url, {
         redirect: 'follow',
         headers: { 'User-Agent': 'LeadFinderProxy/1.0' }
@@ -51,10 +57,10 @@ module.exports = async (req, res) => {
 
       const html = await getRes.text();
 
-      // ------------------- Quality checks (these will disqualify as "down") -------------------
+      // Quality checks — these can now mark as down if you want
       const suggestions = [];
 
-      // 1. Mobile formatting (viewport meta)
+      // Mobile viewport check
       const viewportRegex = /<meta\s+[^>]*name\s*=\s*["']viewport["'][^>]*content\s*=\s*["']([^"']*)["'][^>]*>/i;
       const viewportMatch = html.match(viewportRegex);
       const hasProperViewport = viewportMatch && 
@@ -64,7 +70,7 @@ module.exports = async (req, res) => {
         suggestions.push('Missing or improper viewport meta tag (poor mobile support)');
       }
 
-      // 2. Word count
+      // Word count
       const strippedText = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -79,11 +85,11 @@ module.exports = async (req, res) => {
         suggestions.push(`Very thin content (~${wordCount} words visible)`);
       }
 
-      // Decision: if any quality issue → mark as not functioning
+      // Decide status
       if (suggestions.length > 0) {
         result.status = 'down';
         result.details = 'Website loads but fails quality checks (mobile or content issues)';
-        result.suggestions = suggestions;  // shows exactly why it failed
+        result.suggestions = suggestions;
       } else {
         result.status = 'working';
         result.details = 'Website responded successfully';
@@ -93,36 +99,33 @@ module.exports = async (req, res) => {
 
     } catch (error) {
       result.status = 'down';
-      result.details =
-        error.name === 'AbortError'
-          ? 'Timeout after 10 seconds'
-          : 'Connection failed';
+      result.details = error.name === 'AbortError' ? 'Timeout after 10 seconds' : 'Connection failed';
       return result;
     }
   }
 
-  // ----- GET: single URL -----
+  // ──────────────────────────────────────────────
+  // GET handler (single URL)
+  // ──────────────────────────────────────────────
   if (req.method === 'GET') {
     const queryUrl = req.query.url;
     if (!queryUrl) {
-      return res.status(400).json({
-        error: 'Please provide a URL to check as ?url=example.com'
-      });
+      return res.status(400).json({ error: 'Please provide a URL as ?url=example.com' });
     }
     const result = await checkSingle(queryUrl);
     return res.status(200).json(result);
   }
 
-  // ----- POST: batch -----
+  // ──────────────────────────────────────────────
+  // POST handler (batch)
+  // ──────────────────────────────────────────────
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST required' });
   }
 
   const { websites } = req.body || {};
   if (!Array.isArray(websites) || websites.length === 0) {
-    return res.status(400).json({
-      error: 'Request must include { websites: [] }'
-    });
+    return res.status(400).json({ error: 'Request must include { websites: [] }' });
   }
 
   const results = [];
