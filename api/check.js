@@ -1,26 +1,19 @@
 const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
-  // ──────────────────────────────────────────────
-  // CORS + preflight handling — MUST BE FIRST
-  // ──────────────────────────────────────────────
+  // CORS headers applied to ALL, OPTIONS first
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
-  // Explicitly handle OPTIONS preflight (this is critical!)
   if (req.method === 'OPTIONS') {
     res.status(200).end();
-    return; // Stop here — do NOT continue to other logic
+    return;
   }
 
-  // Now set content type for actual responses
   res.setHeader('Content-Type', 'application/json');
 
-  // ──────────────────────────────────────────────
-  // Your original checkSingle function (unchanged)
-  // ──────────────────────────────────────────────
   async function checkSingle(site) {
     const url = site.startsWith('http') ? site : `https://${site}`;
     const result = { url };
@@ -91,7 +84,6 @@ module.exports = async (req, res) => {
       }
 
       return result;
-
     } catch (error) {
       result.status = 'down';
       result.details = error.name === 'AbortError' ? 'Timeout after 10 seconds' : 'Connection failed';
@@ -99,9 +91,6 @@ module.exports = async (req, res) => {
     }
   }
 
-  // ──────────────────────────────────────────────
-  // GET handler
-  // ──────────────────────────────────────────────
   if (req.method === 'GET') {
     const queryUrl = req.query.url;
     if (!queryUrl) {
@@ -111,9 +100,6 @@ module.exports = async (req, res) => {
     return res.status(200).json(result);
   }
 
-  // ──────────────────────────────────────────────
-  // POST handler (batch)
-  // ──────────────────────────────────────────────
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST required' });
   }
