@@ -2,23 +2,24 @@ const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
   // ──────────────────────────────────────────────
-  // CORS headers — applied to ALL responses
+  // CORS + preflight handling — MUST BE FIRST
   // ──────────────────────────────────────────────
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
-  // Handle preflight OPTIONS request (critical for CORS)
+  // Explicitly handle OPTIONS preflight (this is critical!)
   if (req.method === 'OPTIONS') {
     res.status(200).end();
-    return;
+    return; // Stop here — do NOT continue to other logic
   }
 
+  // Now set content type for actual responses
   res.setHeader('Content-Type', 'application/json');
 
   // ──────────────────────────────────────────────
-  // Your original helper function (checkSingle)
+  // Your original checkSingle function (unchanged)
   // ──────────────────────────────────────────────
   async function checkSingle(site) {
     const url = site.startsWith('http') ? site : `https://${site}`;
@@ -43,7 +44,6 @@ module.exports = async (req, res) => {
         return result;
       }
 
-      // Fetch full body for quality checks
       const getRes = await fetch(url, {
         redirect: 'follow',
         headers: { 'User-Agent': 'LeadFinderProxy/1.0' }
@@ -57,20 +57,16 @@ module.exports = async (req, res) => {
 
       const html = await getRes.text();
 
-      // Quality checks — these can now mark as down if you want
       const suggestions = [];
 
-      // Mobile viewport check
       const viewportRegex = /<meta\s+[^>]*name\s*=\s*["']viewport["'][^>]*content\s*=\s*["']([^"']*)["'][^>]*>/i;
       const viewportMatch = html.match(viewportRegex);
-      const hasProperViewport = viewportMatch && 
-        viewportMatch[1].toLowerCase().includes('width=device-width');
+      const hasProperViewport = viewportMatch && viewportMatch[1].toLowerCase().includes('width=device-width');
 
       if (!hasProperViewport) {
         suggestions.push('Missing or improper viewport meta tag (poor mobile support)');
       }
 
-      // Word count
       const strippedText = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -85,7 +81,6 @@ module.exports = async (req, res) => {
         suggestions.push(`Very thin content (~${wordCount} words visible)`);
       }
 
-      // Decide status
       if (suggestions.length > 0) {
         result.status = 'down';
         result.details = 'Website loads but fails quality checks (mobile or content issues)';
@@ -105,7 +100,7 @@ module.exports = async (req, res) => {
   }
 
   // ──────────────────────────────────────────────
-  // GET handler (single URL)
+  // GET handler
   // ──────────────────────────────────────────────
   if (req.method === 'GET') {
     const queryUrl = req.query.url;
