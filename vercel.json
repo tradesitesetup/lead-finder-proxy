@@ -1,12 +1,14 @@
 {
-  "version": 2,
+  "functions": {
+    "api/check.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
   "routes": [
     {
-      "src": "/",
-      "dest": "/api/check.js"
-    },
-    {
-      "src": "/check",
+      "src": "/api/check",
+      "methods": ["POST", "OPTIONS"],
       "dest": "/api/check.js"
     }
   ]
