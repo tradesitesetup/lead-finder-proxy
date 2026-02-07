@@ -36,56 +36,56 @@ module.exports = async (req, res) => {
         return result;
       }
 
-      // Site appears working from HEAD → fetch full HTML for extra checks
+      // HEAD OK → fetch full body to inspect content
       const getRes = await fetch(url, {
         redirect: 'follow',
         headers: { 'User-Agent': 'LeadFinderProxy/1.0' }
       });
 
-      // If full GET fails, still count as working (HEAD was OK)
       if (!getRes.ok) {
-        result.status = 'working';
-        result.details = 'HEAD OK but full page fetch failed';
+        result.status = 'down';
+        result.details = `Full page fetch failed (HTTP ${getRes.status})`;
         return result;
       }
 
       const html = await getRes.text();
 
-      // Set original success response
-      result.status = 'working';
-      result.details = 'Website responded successfully';
+      // ------------------- Checks that can now mark as "down" -------------------
+      const issues = [];
 
-      // ------------------- Added: Suggestions for mobile formatting & word count -------------------
-      const suggestions = [];
-
-      // 1. Mobile formatting check (viewport meta tag)
+      // 1. Mobile formatting (viewport meta)
       const viewportRegex = /<meta\s+[^>]*name\s*=\s*["']viewport["'][^>]*content\s*=\s*["']([^"']*)["'][^>]*>/i;
       const viewportMatch = html.match(viewportRegex);
       const hasProperViewport = viewportMatch && 
         viewportMatch[1].toLowerCase().includes('width=device-width');
-      
+
       if (!hasProperViewport) {
-        suggestions.push('Likely poor mobile formatting (missing or improper viewport meta tag)');
+        issues.push('Missing or improper viewport meta tag (poor mobile support)');
       }
 
-      // 2. Rough visible word count
+      // 2. Word count
       const strippedText = html
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')   // remove scripts
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')     // remove styles
-        .replace(/<[^>]+>/g, ' ')                           // strip all HTML tags
-        .replace(/\s+/g, ' ')                               // collapse multiple spaces
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
-      
+
       const words = strippedText.split(' ').filter(w => w.length > 0);
       const wordCount = words.length;
 
       if (wordCount < 300) {
-        suggestions.push(`Thin content (only ~${wordCount} words visible)`);
+        issues.push(`Very thin content (~${wordCount} words visible)`);
       }
 
-      // Attach suggestions only if we found any issues
-      if (suggestions.length > 0) {
-        result.suggestions = suggestions;
+      // Decision: any issue → treat as not functioning
+      if (issues.length > 0) {
+        result.status = 'down';
+        result.details = 'Website loads but fails quality checks (mobile/content issues)';
+        result.suggestions = issues; // optional: shows what failed
+      } else {
+        result.status = 'working';
+        result.details = 'Website responded successfully';
       }
 
       return result;
@@ -100,7 +100,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  // ----- GET: single URL via query -----
+  // ----- GET: single URL -----
   if (req.method === 'GET') {
     const queryUrl = req.query.url;
     if (!queryUrl) {
@@ -112,7 +112,7 @@ module.exports = async (req, res) => {
     return res.status(200).json(result);
   }
 
-  // ----- POST: batch check multiple websites -----
+  // ----- POST: batch -----
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST required' });
   }
