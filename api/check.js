@@ -36,7 +36,7 @@ module.exports = async (req, res) => {
         return result;
       }
 
-      // HEAD OK → fetch full body to inspect content
+      // HEAD OK → fetch full body for quality inspection
       const getRes = await fetch(url, {
         redirect: 'follow',
         headers: { 'User-Agent': 'LeadFinderProxy/1.0' }
@@ -50,8 +50,8 @@ module.exports = async (req, res) => {
 
       const html = await getRes.text();
 
-      // ------------------- Checks that can now mark as "down" -------------------
-      const issues = [];
+      // ------------------- Quality checks (these will disqualify as "down") -------------------
+      const suggestions = [];
 
       // 1. Mobile formatting (viewport meta)
       const viewportRegex = /<meta\s+[^>]*name\s*=\s*["']viewport["'][^>]*content\s*=\s*["']([^"']*)["'][^>]*>/i;
@@ -60,7 +60,7 @@ module.exports = async (req, res) => {
         viewportMatch[1].toLowerCase().includes('width=device-width');
 
       if (!hasProperViewport) {
-        issues.push('Missing or improper viewport meta tag (poor mobile support)');
+        suggestions.push('Missing or improper viewport meta tag (poor mobile support)');
       }
 
       // 2. Word count
@@ -75,14 +75,14 @@ module.exports = async (req, res) => {
       const wordCount = words.length;
 
       if (wordCount < 300) {
-        issues.push(`Very thin content (~${wordCount} words visible)`);
+        suggestions.push(`Very thin content (~${wordCount} words visible)`);
       }
 
-      // Decision: any issue → treat as not functioning
-      if (issues.length > 0) {
+      // Decision: if any quality issue → mark as not functioning
+      if (suggestions.length > 0) {
         result.status = 'down';
-        result.details = 'Website loads but fails quality checks (mobile/content issues)';
-        result.suggestions = issues; // optional: shows what failed
+        result.details = 'Website loads but fails quality checks (mobile or content issues)';
+        result.suggestions = suggestions;  // shows exactly why it failed
       } else {
         result.status = 'working';
         result.details = 'Website responded successfully';
