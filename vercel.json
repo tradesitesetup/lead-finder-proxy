@@ -7,13 +7,3 @@
     }
   }
 }
-```
-
----
-
-### **File 4: .gitignore**
-```
-node_modules
-.vercel
-.env
-.env.local
