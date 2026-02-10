@@ -1,76 +1,159 @@
+/**
+ * Bulk URL Status Checker API
+ * Vercel Serverless Function
+ */
+
+const MAX_URLS = 500;
+const TIMEOUT_MS = 8000;
+const CONCURRENCY_LIMIT = 10;
+
 export default async function handler(req, res) {
-  // ===== CORS =====
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
+  // Only allow POST
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'POST required' });
-  }
-
-  try {
-    const { websites } = req.body;
-
-    if (!Array.isArray(websites) || websites.length === 0) {
-      return res.status(400).json({ error: 'websites must be a non-empty array' });
-    }
-
-    // 🔥 CHANGE #1: allow up to 500
-    const MAX_SITES = 500;
-    const sites = websites.slice(0, MAX_SITES);
-
-    const TIMEOUT_MS = 8000;
-    const CONCURRENCY = 10; // 🔥 critical for stability
-
-    const results = [];
-
-    // ===== helper to check a single site =====
-    async function checkSite(url) {
-      let status = 'down';
-      let httpStatus = null;
-
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-        const response = await fetch(url, {
-          method: 'GET',
-          redirect: 'manual',
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeout);
-
-        httpStatus = response.status;
-
-        if (response.ok) status = 'up';
-        else if (response.status >= 300 && response.status < 500) status = 'reachable';
-        else status = 'down';
-
-      } catch (err) {
-        status = 'down';
-      }
-
-      return { url, status, httpStatus };
-    }
-
-    // ===== CHANGE #2: process in chunks =====
-    for (let i = 0; i < sites.length; i += CONCURRENCY) {
-      const chunk = sites.slice(i, i + CONCURRENCY);
-      const chunkResults = await Promise.all(chunk.map(checkSite));
-      results.push(...chunkResults);
-    }
-
-    return res.status(200).json({ results });
-
-  } catch (err) {
-    return res.status(500).json({
-      error: 'Server error',
-      message: err.message,
+    return res.status(405).json({
+      error: 'Method Not Allowed',
+      message: 'Only POST requests are accepted'
     });
   }
+
+  // Parse and validate request body
+  let websites;
+  try {
+    const body = req.body;
+    websites = body?.websites;
+
+    if (!websites) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Missing "websites" field in request body'
+      });
+    }
+
+    if (!Array.isArray(websites)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: '"websites" must be an array of URLs'
+      });
+    }
+
+    if (websites.length === 0) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: '"websites" array cannot be empty'
+      });
+    }
+  } catch (error) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Invalid JSON body'
+    });
+  }
+
+  // Limit to MAX_URLS
+  const urlsToCheck = websites.slice(0, MAX_URLS);
+
+  // Process URLs with concurrency control
+  try {
+    const results = await checkUrlsWithConcurrency(urlsToCheck);
+    return res.status(200).json({ results });
+  } catch (error) {
+    console.error('Error processing URLs:', error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'An error occurred while checking URLs'
+    });
+  }
+}
+
+/**
+ * Check URLs with controlled concurrency
+ */
+async function checkUrlsWithConcurrency(urls) {
+  const results = [];
+  
+  for (let i = 0; i < urls.length; i += CONCURRENCY_LIMIT) {
+    const chunk = urls.slice(i, i + CONCURRENCY_LIMIT);
+    const chunkResults = await Promise.all(
+      chunk.map(url => checkUrl(url))
+    );
+    results.push(...chunkResults);
+  }
+  
+  return results;
+}
+
+/**
+ * Check a single URL
+ */
+async function checkUrl(url) {
+  const result = {
+    url: url,
+    status: 'down',
+    httpStatus: null
+  };
+
+  try {
+    // Validate URL format
+    new URL(url);
+
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Vercel-URL-Status-Checker/1.0'
+        }
+      });
+
+      clearTimeout(timeoutId);
+      result.httpStatus = response.status;
+
+      // Classify status
+      if (response.status >= 200 && response.status <= 299) {
+        result.status = 'up';
+      } else if (response.status >= 300 && response.status <= 499) {
+        result.status = 'reachable';
+      } else {
+        // 500+ or other
+        result.status = 'down';
+      }
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
+      // Check if it's a timeout/abort error
+      if (fetchError.name === 'AbortError') {
+        result.status = 'down';
+      } else if (
+        fetchError.message.includes('ECONNREFUSED') ||
+        fetchError.message.includes('ENOTFOUND') ||
+        fetchError.message.includes('ETIMEDOUT') ||
+        fetchError.message.includes('EAI_AGAIN')
+      ) {
+        result.status = 'down';
+      } else {
+        // Other fetch errors
+        result.status = 'down';
+      }
+    }
+  } catch (error) {
+    // Invalid URL or other errors
+    result.status = 'down';
+  }
+
+  return result;
 }
