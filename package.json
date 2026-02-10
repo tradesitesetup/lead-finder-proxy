@@ -1,8 +1,12 @@
 {
-  "name": "lead-finder-proxy",
+  "name": "bulk-url-status-checker",
   "version": "1.0.0",
   "private": true,
+  "description": "Bulk URL status checker API for Vercel",
   "type": "module",
+  "engines": {
+    "node": "18.x || 20.x"
+  },
   "scripts": {
     "dev": "vercel dev",
     "deploy": "vercel --prod"
