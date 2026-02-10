@@ -6,19 +6,24 @@
 const MAX_URLS = 500;
 const TIMEOUT_MS = 8000;
 const CONCURRENCY_LIMIT = 10;
-const ALLOWED_ORIGIN = 'https://crm-app-git-main-tradesitesetups-projects.vercel.app';
+
+// UPDATED: Added your GitHub Pages domain
+const ALLOWED_ORIGINS = [
+  'https://tradesitesetup.github.io',
+  'https://crm-app-git-main-tradesitesetups-projects.vercel.app'
+];
 
 export default async function handler(req, res) {
-  // CORS headers - restricted to your site
+  // CORS headers - restricted to your sites
   const origin = req.headers.origin;
   
-  if (origin === ALLOWED_ORIGIN) {
-    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
@@ -26,7 +31,7 @@ export default async function handler(req, res) {
   }
 
   // Verify origin for actual requests
-  if (origin !== ALLOWED_ORIGIN) {
+  if (!ALLOWED_ORIGINS.includes(origin)) {
     return res.status(403).json({
       error: 'Forbidden',
       message: 'CORS policy: Origin not allowed'
