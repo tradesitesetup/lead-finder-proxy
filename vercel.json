@@ -1,5 +1,18 @@
 {
   "version": 2,
+  "builds": [
+    {
+      "src": "api/check.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/check",
+      "methods": ["POST", "OPTIONS"],
+      "dest": "/api/check.js"
+    }
+  ],
   "functions": {
     "api/check.js": {
       "memory": 1024,
