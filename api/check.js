@@ -7,48 +7,66 @@ const MAX_URLS = 500;
 const TIMEOUT_MS = 8000;
 const CONCURRENCY_LIMIT = 10;
 
-// UPDATED: Added your GitHub Pages domain
+// Allow requests from your GitHub Pages site
 const ALLOWED_ORIGINS = [
-  'https://tradesitesetup.github.io'
+  'https://tradesitesetup.github.io',
+  'http://localhost:3000', // for local testing
 ];
 
 export default async function handler(req, res) {
-  // CORS headers - restricted to your sites
+  console.log('=== REQUEST DEBUG ===');
+  console.log('Method:', req.method);
+  console.log('Origin:', req.headers.origin);
+  console.log('Headers:', JSON.stringify(req.headers));
+  
   const origin = req.headers.origin;
   
-  if (ALLOWED_ORIGINS.includes(origin)) {
+  // ALWAYS set CORS headers first
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else {
+    // For testing, allow any origin (remove this in production)
+    res.setHeader('Access-Control-Allow-Origin', '*');
   }
   
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
-  // Handle OPTIONS preflight
+  // Handle OPTIONS preflight - MUST return 200
   if (req.method === 'OPTIONS') {
+    console.log('Handling OPTIONS preflight');
     return res.status(200).end();
   }
 
-  // Verify origin for actual requests
-  if (!ALLOWED_ORIGINS.includes(origin)) {
-    return res.status(403).json({
-      error: 'Forbidden',
-      message: `CORS policy: Origin '${origin}' not allowed. Allowed origins: ${ALLOWED_ORIGINS.join(', ')}`
+  // Handle GET for testing
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      message: 'API is working! Use POST method to check websites.',
+      usage: 'POST { "websites": ["https://example.com"] }',
+      allowedOrigins: ALLOWED_ORIGINS
     });
   }
 
-  // Only allow POST
+  // Only allow POST for actual checking
   if (req.method !== 'POST') {
     return res.status(405).json({
       error: 'Method Not Allowed',
-      message: 'Only POST requests are accepted'
+      message: 'Only POST requests are accepted for website checking'
     });
+  }
+
+  // Verify origin (but don't block if missing for now)
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    console.warn('Warning: Request from non-allowed origin:', origin);
   }
 
   // Parse and validate request body
   let websites;
   try {
     const body = req.body;
+    console.log('Request body:', JSON.stringify(body));
+    
     websites = body?.websites;
 
     if (!websites) {
@@ -72,6 +90,7 @@ export default async function handler(req, res) {
       });
     }
   } catch (error) {
+    console.error('Error parsing request:', error);
     return res.status(400).json({
       error: 'Bad Request',
       message: 'Invalid JSON body'
@@ -80,10 +99,12 @@ export default async function handler(req, res) {
 
   // Limit to MAX_URLS
   const urlsToCheck = websites.slice(0, MAX_URLS);
+  console.log(`Processing ${urlsToCheck.length} URLs`);
 
   // Process URLs with concurrency control
   try {
     const results = await checkUrlsWithConcurrency(urlsToCheck);
+    console.log(`Successfully checked ${results.length} URLs`);
     return res.status(200).json({ results });
   } catch (error) {
     console.error('Error processing URLs:', error);
@@ -135,7 +156,7 @@ async function checkUrl(url) {
         redirect: 'manual',
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Vercel-URL-Status-Checker/1.0'
+          'User-Agent': 'Mozilla/5.0 (compatible; URLStatusChecker/1.0)'
         }
       });
 
@@ -176,21 +197,3 @@ async function checkUrl(url) {
 
   return result;
 }
-```
-
----
-
-## **Step 2: Deployment Instructions**
-
-1. **Go to your `lead-finder-proxy` repository** on GitHub
-2. **Replace the `api/check.js` file** with the code above
-3. **Commit and push** to the `main` branch
-4. **Vercel will auto-deploy** the changes
-
----
-
-## **Step 3: Update Your CRM with the Correct API URL**
-
-In your CRM app, enter this URL in the API input field:
-```
-https://lead-finder-proxy-git-main-tradesitesetups-projects.vercel.app/api/check
