@@ -9,8 +9,7 @@ const CONCURRENCY_LIMIT = 10;
 
 // UPDATED: Added your GitHub Pages domain
 const ALLOWED_ORIGINS = [
-  'https://tradesitesetup.github.io',
-  'https://crm-app-git-main-tradesitesetups-projects.vercel.app'
+  'https://tradesitesetup.github.io'
 ];
 
 export default async function handler(req, res) {
@@ -34,7 +33,7 @@ export default async function handler(req, res) {
   if (!ALLOWED_ORIGINS.includes(origin)) {
     return res.status(403).json({
       error: 'Forbidden',
-      message: 'CORS policy: Origin not allowed'
+      message: `CORS policy: Origin '${origin}' not allowed. Allowed origins: ${ALLOWED_ORIGINS.join(', ')}`
     });
   }
 
@@ -177,3 +176,21 @@ async function checkUrl(url) {
 
   return result;
 }
+```
+
+---
+
+## **Step 2: Deployment Instructions**
+
+1. **Go to your `lead-finder-proxy` repository** on GitHub
+2. **Replace the `api/check.js` file** with the code above
+3. **Commit and push** to the `main` branch
+4. **Vercel will auto-deploy** the changes
+
+---
+
+## **Step 3: Update Your CRM with the Correct API URL**
+
+In your CRM app, enter this URL in the API input field:
+```
+https://lead-finder-proxy-git-main-tradesitesetups-projects.vercel.app/api/check
